@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Scrim {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  guildId     String   @unique
+  link        String
+  maxPlayers  Int
+  players     Player[]
+}
+
+model Player {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  position  String
+  scrimId   String?
+  scrim     Scrim?   @relation(fields: [scrimId], references: [id])
+}

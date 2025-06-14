@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "@sapphire/framework": "^5.3.6",
+    "discord.js": "14.x",
+    "dotenv": "^16.5.0",
+    "mongodb": "^6.17.0",
+    "prisma": "^6.9.0"
+  },
+  "name": "kyronexbot",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "dev": "bun run src/index.ts --watch"
+  }
+}
