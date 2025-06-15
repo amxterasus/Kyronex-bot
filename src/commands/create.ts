@@ -35,6 +35,13 @@ export class CreateCommand extends Command {
       return;
     }
 
+    const isValidLink = /^https:\/\/www\.roblox\.com\/share\?code=[\w\d]+(&type=\w+)?$/.test(link);
+
+
+    if (!isValidLink) {
+      return message.reply("Please provide a valid Roblox share link.");
+    }
+
     await prisma.scrim.create({
       data: {
         guildId,
@@ -43,6 +50,6 @@ export class CreateCommand extends Command {
       },
     });
 
-    return message.reply("✅ Scrim created!");
+    return message.reply("Scrim created!");
   }
 }
