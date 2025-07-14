@@ -1,45 +1,69 @@
 import { Command } from "@sapphire/framework";
-import type { Message } from "discord.js";
+import { MessageFlags, EmbedBuilder } from "discord.js";
 import { prisma } from "../lib/database";
 import { RoleIds } from "../types/enums";
 
 export class CreateCommand extends Command {
-  public constructor(context: Command.LoaderContext) {
-    super(context, {
-      name: "create",
-      description: "Creates a scrim.",
-    });
+  public override registerApplicationCommands(registry: Command.Registry) {
+    registry.registerChatInputCommand((builder) =>
+      builder
+        .setName("create")
+        .setDescription("Creates a scrim.")
+        .addStringOption((option) =>
+          option
+            .setName("link")
+            .setDescription("Roblox share link")
+            .setRequired(true)
+        )
+    );
   }
 
-  public override async messageRun(message: Message) {
-    if (!message.guild || !message.member) {
-      return message.reply("This command can only be used in a server.");
+  public override async chatInputRun(
+    interaction: Command.ChatInputCommandInteraction
+  ) {
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    if (!guild || !member || !("roles" in member)) {
+      return interaction.reply({
+        content: "❌ This command can only be used in a server.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    if (!message.member?.roles.cache.has(RoleIds.Manager)) {
-      return message.reply("You do not have permission to create a scrim.");
+    const hasPermission = Array.isArray(member.roles)
+      ? member.roles.includes(RoleIds.Manager)
+      : member.roles.cache.has(RoleIds.Manager);
+
+    if (!hasPermission) {
+      return interaction.reply({
+        content: "❌ You do not have permission to create a scrim.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    const args = message.content.trim().split(/ +/);
-    const link = args[1];
+    const link = interaction.options.getString("link", true);
+    const guildId = guild.id;
 
-    const guildId = message.guild.id;
+    const scrimExists = await prisma.scrim.findUnique({ where: { guildId } });
 
-    if (await prisma.scrim.findUnique({ where: { guildId } })) {
-      await message.reply("A scrim already exists.");
-      return;
+    if (scrimExists) {
+      return interaction.reply({
+        content: "⚠️ A scrim already exists.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    if (!link) {
-      await message.reply("Please provide a link for the scrim.");
-      return;
-    }
-
-    const isValidLink = /^https:\/\/www\.roblox\.com\/share\?code=[\w\d]+(&type=\w+)?$/.test(link);
-
+    const isValidLink =
+      /^https:\/\/www\.roblox\.com\/share\?code=[\w\d]+(&type=\w+)?$/.test(
+        link
+      );
 
     if (!isValidLink) {
-      return message.reply("Please provide a valid Roblox share link.");
+      return interaction.reply({
+        content: "❌ Please provide a valid Roblox share link.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
     await prisma.scrim.create({
@@ -50,6 +74,29 @@ export class CreateCommand extends Command {
       },
     });
 
-    return message.reply("Scrim created!");
+    let embed = new EmbedBuilder()
+      .setTitle("✅ Scrim Created")
+      .setColor("Green")
+      .setDescription("The scrim has been successfully created.")
+      .setFooter({
+        text: `Created by ${interaction.user.displayName}`,
+        iconURL: interaction.user.displayAvatarURL(),
+      })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+
+    embed = new EmbedBuilder()
+      .setColor("Blue")
+      .setDescription(
+        `ℹ️ A new scrim has been created. Use \`/join [position]\` to join the scrim.`
+      )
+      .setFooter({
+        text: `Scrim created`,
+        iconURL: interaction.user.displayAvatarURL(),
+      })
+      .setTimestamp();
+
+    return interaction.followUp({ embeds: [embed] });
   }
 }

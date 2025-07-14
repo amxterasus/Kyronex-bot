@@ -2,13 +2,20 @@ import { Command } from "@sapphire/framework";
 import type { ChatInputCommandInteraction } from "discord.js";
 import { MessageFlags, EmbedBuilder } from "discord.js";
 import { prisma } from "../lib/database";
+import { RoleIds } from "../types/enums";
 
-export class LeaveCommand extends Command {
+export class KickCommand extends Command {
   public override registerApplicationCommands(registry: Command.Registry) {
-    registry.registerChatInputCommand(
-      (builder) =>
-        builder.setName("leave").setDescription("Leave the current scrim."),
-      { idHints: ["1394135151608332390"] }
+    registry.registerChatInputCommand((builder) =>
+      builder
+        .setName("kick")
+        .setDescription("Kick a player from the current scrim.")
+        .addUserOption((option) =>
+          option
+            .setName("user")
+            .setDescription("User to kick")
+            .setRequired(true)
+        )
     );
   }
 
@@ -23,8 +30,27 @@ export class LeaveCommand extends Command {
       });
     }
 
+    const hasPermission = Array.isArray(member.roles)
+      ? member.roles.includes(RoleIds.Manager)
+      : member.roles.cache.has(RoleIds.Manager);
+
+    if (!hasPermission) {
+      return interaction.reply({
+        content: "❌ You do not have permission to kick players.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const userToKick = interaction.options.getUser("user", true);
+
+    if (userToKick.id === interaction.user.id) {
+      return interaction.reply({
+        content: "❌ You cannot kick yourself.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
     const guildId = guild.id;
-    const userId = interaction.user.id;
 
     const scrim = await prisma.scrim.findUnique({
       where: { guildId },
@@ -38,11 +64,11 @@ export class LeaveCommand extends Command {
       });
     }
 
-    const player = scrim.players.find((p) => p.userId === userId);
+    const player = scrim.players.find((p) => p.userId === userToKick.id);
 
     if (!player) {
       return interaction.reply({
-        content: "❌ You are not part of this scrim.",
+        content: "❌ User is not part of this scrim.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -57,17 +83,11 @@ export class LeaveCommand extends Command {
     });
 
     const embed = new EmbedBuilder()
-      .setColor("Blue")
-      .setTitle(`${interaction.user.displayName} left the scrim`)
+      .setColor("Green")
+      .setTitle("Player Kicked")
       .setDescription(
-        `${interaction.user.displayName} left the scrim.\n**${
-          scrim.players.length - 1
-        }/${scrim.maxPlayers}** players remaining.`
+        `${userToKick.displayName} has been kicked from the scrim.`
       )
-      .setFooter({
-        text: `Scrim left`,
-        iconURL: interaction.user.displayAvatarURL(),
-      })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed] });

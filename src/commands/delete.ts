@@ -1,39 +1,63 @@
 import { Command } from "@sapphire/framework";
-import type { Message } from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags, EmbedBuilder } from "discord.js";
 import { prisma } from "../lib/database";
 import { RoleIds } from "../types/enums";
 
 export class DeleteCommand extends Command {
-  public constructor(context: Command.LoaderContext) {
-    super(context, {
-      name: "delete",
-      description: "Deletes a scrim.",
-    });
+  public override registerApplicationCommands(registry: Command.Registry) {
+    registry.registerChatInputCommand(
+      (builder) =>
+        builder.setName("delete").setDescription("Deletes the current scrim."),
+      { idHints: ["1394135148857131060"] }
+    );
   }
 
-  public override async messageRun(message: Message) {
-    if (!message.guild || !message.member) {
-      return message.reply("This command can only be used in a server.");
+  public override async chatInputRun(interaction: ChatInputCommandInteraction) {
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    if (!guild || !member || !("roles" in member)) {
+      return interaction.reply({
+        content: "❌ This command can only be used in a server.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    if (!message.member?.roles.cache.has(RoleIds.Manager)) {
-      return message.reply("You do not have permission to create a scrim.");
+    const hasPermission = Array.isArray(member.roles)
+      ? member.roles.includes(RoleIds.Manager)
+      : member.roles.cache.has(RoleIds.Manager);
+
+    if (!hasPermission) {
+      return interaction.reply({
+        content: "❌ You do not have permission to delete a scrim.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    const guildId = message.guild.id;
+    const guildId = guild.id;
 
-    const scrim = await prisma.scrim.findUnique({
-      where: { guildId },
-    });
+    const scrim = await prisma.scrim.findUnique({ where: { guildId } });
 
     if (!scrim) {
-      return message.reply("No scrim exists.");
+      return interaction.reply({
+        content: "⚠️ No scrim exists to delete.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
-    await prisma.scrim.delete({
-      where: { guildId },
-    });
+    await prisma.scrim.delete({ where: { guildId } });
 
-    return message.reply(`The scrim has been deleted.`);
+    const embed = new EmbedBuilder()
+      .setColor("Green")
+      .setTitle("🗑️ Scrim Deleted")
+      .setDescription(`The scrim has been successfully deleted.`)
+      .setFooter({
+        text: `Deleted by ${interaction.user.displayName}`,
+        iconURL: interaction.user.displayAvatarURL(),
+      })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
   }
 }
